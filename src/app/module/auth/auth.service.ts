@@ -15,11 +15,13 @@ import {
   IRegisterPatientPayload,
   IRequestUser,
 } from "./auth.interface";
-import { OAuth2Client, TokenPayload } from "google-auth-library";
+import { TokenPayload } from "google-auth-library";
 import { googleClient } from "../../lib/googleAuth";
 
 const registerPatient = async (payload: IRegisterPatientPayload) => {
-  const { name, password } = payload;
+  const { name, password, patient: patientData } = payload;
+  if (!name || typeof name !== "string" || name.length < 3) {
+  }
   const email = payload.email.trim().toLowerCase();
 
   const isUserExists = await prisma.user.findUnique({
@@ -41,7 +43,11 @@ const registerPatient = async (payload: IRegisterPatientPayload) => {
       status: UserStatus.ACTIVE,
       emailVerified: false,
       patient: {
-        create: { name, email },
+        create: {
+          name,
+          email,
+          contactNumber: patientData?.contactNumber || "",
+        },
       },
     },
     omit: { password: true },
@@ -95,7 +101,11 @@ const loginUser = async (payload: ILoginUserPayload) => {
   if (user.isDeleted || user.status === UserStatus.DELETED) {
     throw new Error("User is deleted");
   }
-
+  if (user.password === null && user.googleId !== null) {
+    throw new Error(
+      "User Already Has Account Registered With Google. Try To Login With Google.",
+    );
+  }
   const isPasswordMatched = await bcrypt.compare(
     password,
     user.password as string,
